@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  django:
+    build:
+      context: .
+      dockerfile: docker-files/webapp.dockerfile
+    container_name: {{ cookiecutter.project_slug }}_django
+    command: python manage.py runserver 0.0.0.0:9009
+    volumes:
+      - .:/web
+    ports:
+      - "9009:9009"
+    env_file:
+      - .envs/.local/.django
+    environment:
+      DJANGO_SHOP_TUTORIAL: i18n_polymorphic
+    depends_on:
+      - db
+
+  db:
+    image: postgres:13
+    container_name: {{ cookiecutter.project_slug }}_postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - .envs/.local/.postgres
+
+volumes:
+  postgres_data:
