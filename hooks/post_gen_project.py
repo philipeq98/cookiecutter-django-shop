@@ -57,18 +57,6 @@ def set_secrets():
             set_flag(path, "!!!SET CELERY_FLOWER_USER!!!", length=16)
             set_flag(path, "!!!SET CELERY_FLOWER_PASSWORD!!!", length=48)
 
-def poetry_export_requirements():
-    try:
-        subprocess.run(["poetry", "install"], check=True)
-        subprocess.run([
-            "poetry", "export",
-            "-f", "requirements.txt",
-            "--without-hashes",
-            "--output", "requirements.txt"
-        ], check=True)
-    except subprocess.CalledProcessError:
-        print(WARNING + "Failed to export requirements via Poetry." + TERMINATOR)
-
 def remove_docker_files():
     for path in ["docker-compose.yml", ".dockerignore", "docker-files"]:
         if os.path.isdir(path):
@@ -103,11 +91,11 @@ poetry run python manage.py initialize_shop_demo
 poetry run python manage.py runserver
 """ + TERMINATOR)
     else:
-        poetry_export_requirements()
         set_flag("docker-files/databases.environ", "!!!SET POSTGRES_PASSWORD!!!", length=48)
         print(HINT + f"""
 cd {{ cookiecutter.project_slug }}
-docker-compose up --build -d
+docker-compose build
+docker-compose up -d
 """ + TERMINATOR)
 
     reformat_white_space()
