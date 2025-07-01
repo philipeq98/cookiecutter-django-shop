@@ -68,11 +68,17 @@ def reformat_white_space():
     try:
         import autopep8
         target = os.path.abspath("./{{ cookiecutter.app_name }}")
-        args = autopep8.parse_args(['--max-line-length=119', '--in-place', '--recursive'])
-        if os.path.exists(target):
-            autopep8.fix_multiple_files([target], args)
+        args = autopep8.parse_args([
+            '--max-line-length=119',
+            '--in-place',
+            '--recursive',
+            target  # ✅ <-- include target here as argument!
+        ])
+        autopep8.fix_multiple_files([target], args)
     except ImportError:
         print(WARNING + "autopep8 not found. Skipping formatting." + TERMINATOR)
+    except Exception as e:
+        print(WARNING + f"autopep8 failed: {e}" + TERMINATOR)
 
 def main():
     set_secrets()
