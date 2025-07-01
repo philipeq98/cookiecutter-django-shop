@@ -7,8 +7,6 @@ authors = ["{{ cookiecutter.author_name | replace('\"', '\\\"') }}"]
 
 [tool.poetry.dependencies]
 python = "^3.6"
-
-[tool.poetry.dev-dependencies]
 django = "<3"
 djangocms-cascade = "*"
 {% if cookiecutter.use_compressor == 'y' -%}
@@ -58,8 +56,9 @@ paypalrestsdk = "<2"
 {% if cookiecutter.use_sendcloud == 'y' -%}
 djangoshop-sendcloud = "*"
 {% endif -%}
+pillow = "^10.0.0"
 
-[dev-packages]
+[tool.poetry.group.dev.dependencies]
 tox = "*"
 pytest = "*"
 pytest-django = "*"
