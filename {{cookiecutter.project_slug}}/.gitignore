@@ -32,3 +32,4 @@ node_modules/
 workdir/
 django-shop-workdir_*
 .pytest_cache/
+poetry.lock
