@@ -6,7 +6,7 @@ license = "MIT"
 authors = ["{{ cookiecutter.author_name | replace('\"', '\\\"') }}"]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = "^3.8"
 django = "<3"
 djangocms-cascade = "*"
 {% if cookiecutter.use_compressor == 'y' -%}
