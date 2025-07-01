@@ -1,229 +1,117 @@
-"""
-NOTE:
-    the below code is to be maintained Python 2.x-compatible
-    as the whole Cookiecutter Django project initialization
-    can potentially be run in Python 2.x environment
-    (at least so we presume in `pre_gen_project.py`).
-
-TODO: ? restrict Cookiecutter Django project initialization to Python 3.x environments only
-"""
 import os
 import subprocess
 import random
 import shutil
 import string
 
+TERMINATOR = "\x1b[0m"
+SUCCESS = "\x1b[1;32m [SUCCESS]: "
+WARNING = "\x1b[1;33m [WARNING]: "
+HINT = "\x1b[3;33m"
 
 try:
-    # Inspired by https://github.com/django/django/blob/master/django/utils/crypto.py
     random = random.SystemRandom()
     using_sysrandom = True
 except NotImplementedError:
     using_sysrandom = False
 
-TERMINATOR = "\x1b[0m"
-WARNING = "\x1b[1;33m [WARNING]: "
-INFO = "\x1b[1;33m [INFO]: "
-HINT = "\x1b[3;33m"
-SUCCESS = "\x1b[1;32m [SUCCESS]: "
-
-DEBUG_VALUE = "debug"
-
-
-def remove_docker_files():
-    shutil.rmtree("docker-files")
-    file_names = [".dockerignore", "docker-compose.yml"]
-    for file_name in file_names:
-        os.remove(file_name)
-
-
-def append_to_project_gitignore(path):
-    gitignore_file_path = ".gitignore"
-    with open(gitignore_file_path, "a") as gitignore_file:
-        gitignore_file.write(path)
-        gitignore_file.write(os.linesep)
-
-
-def generate_random_string(
-    length, using_digits=False, using_ascii_letters=False, using_punctuation=False
-):
-    """
-    Example:
-        opting out for 50 symbol-long, [a-z][A-Z][0-9] string
-        would yield log_2((26+26+50)^50) ~= 334 bit strength.
-    """
+def generate_random_string(length, using_digits=True, using_ascii_letters=True, using_punctuation=False):
     if not using_sysrandom:
         return None
-
-    symbols = []
+    chars = ''
     if using_digits:
-        symbols += string.digits
+        chars += string.digits
     if using_ascii_letters:
-        symbols += string.ascii_letters
+        chars += string.ascii_letters
     if using_punctuation:
-        symbols += string.punctuation.replace('"', "").replace("'", "").replace(
-            "\\", ""
-        )
-    return "".join([random.choice(symbols) for _ in range(length)])
+        chars += string.punctuation.replace('"', "").replace("'", "").replace("\\", "")
+    return ''.join(random.choice(chars) for _ in range(length))
 
-
-def set_flag(file_path, flag, value=None, formatted=None, *args, **kwargs):
+def set_flag(filepath, marker, value=None, formatted=None, *args, **kwargs):
     if value is None:
-        random_string = generate_random_string(*args, **kwargs)
-        if random_string is None:
-            print(
-                "We couldn't find a secure pseudo-random number generator on your system. "
-                "Please, make sure to manually {} later.".format(flag)
-            )
-            random_string = flag
-        if formatted is not None:
-            random_string = formatted.format(random_string)
-        value = random_string
-
-    with open(file_path, "r+") as f:
-        file_contents = f.read().replace(flag, value)
+        value = generate_random_string(*args, **kwargs)
+        if not value:
+            print(WARNING + f"Secure random generator unavailable. Please set {marker} manually." + TERMINATOR)
+            value = marker
+        if formatted:
+            value = formatted.format(value)
+    with open(filepath, "r+", encoding="utf-8") as f:
+        content = f.read().replace(marker, value)
         f.seek(0)
-        f.write(file_contents)
+        f.write(content)
         f.truncate()
-
     return value
 
+def set_secrets():
+    paths = [
+        os.path.join(".envs", ".local", ".django"),
+        os.path.join(".envs", ".production", ".django"),
+        os.path.join(".envs", ".local", ".postgres"),
+        os.path.join(".envs", ".production", ".postgres"),
+    ]
+    for path in paths:
+        if os.path.exists(path):
+            set_flag(path, "!!!SET DJANGO_SECRET_KEY!!!", length=64)
+            set_flag(path, "!!!SET DJANGO_ADMIN_URL!!!", formatted="{}/", length=32)
+            set_flag(path, "!!!SET POSTGRES_PASSWORD!!!", length=48)
+            set_flag(path, "!!!SET CELERY_FLOWER_USER!!!", length=16)
+            set_flag(path, "!!!SET CELERY_FLOWER_PASSWORD!!!", length=48)
 
-def set_django_secret_key(file_path):
-    django_secret_key = set_flag(
-        file_path,
-        "!!!SET DJANGO_SECRET_KEY!!!",
-        length=64,
-        using_digits=True,
-        using_ascii_letters=True,
-    )
-    return django_secret_key
+def poetry_export_requirements():
+    try:
+        subprocess.run(["poetry", "install"], check=True)
+        subprocess.run([
+            "poetry", "export",
+            "-f", "requirements.txt",
+            "--without-hashes",
+            "--output", "requirements.txt"
+        ], check=True)
+    except subprocess.CalledProcessError:
+        print(WARNING + "Failed to export requirements via Poetry." + TERMINATOR)
 
-
-def set_django_admin_url(file_path):
-    django_admin_url = set_flag(
-        file_path,
-        "!!!SET DJANGO_ADMIN_URL!!!",
-        formatted="{}/",
-        length=32,
-        using_digits=True,
-        using_ascii_letters=True,
-    )
-    return django_admin_url
-
-
-def generate_random_user():
-    return generate_random_string(length=32, using_ascii_letters=True)
-
-
-def set_database_password(file_path, value=None):
-    database_password = set_flag(
-        file_path,
-        "!!!SET POSTGRES_PASSWORD!!!",
-        value=value,
-        length=50,
-        using_digits=True,
-        using_ascii_letters=True,
-    )
-    return database_password
-
-
-def set_celery_flower_user(file_path, value):
-    celery_flower_user = set_flag(
-        file_path,
-        "!!!SET CELERY_FLOWER_USER!!!",
-        value=value,
-    )
-    return celery_flower_user
-
-
-def set_celery_flower_password(file_path, value=None):
-    celery_flower_password = set_flag(
-        file_path,
-        "!!!SET CELERY_FLOWER_PASSWORD!!!",
-        value=value,
-        length=64,
-        using_digits=True,
-        using_ascii_letters=True,
-    )
-    return celery_flower_password
-
-
-def append_to_gitignore_file(s):
-    with open(".gitignore", "a") as gitignore_file:
-        gitignore_file.write(s)
-        gitignore_file.write(os.linesep)
-
-
-def pipenv_to_requirements():
-    ret = subprocess.check_output(['pipenv', 'lock', '--requirements'])
-    with open('requirements.txt', 'w') as fh:
-        fh.write(ret.decode('utf-8'))
-        
-def poetry_to_requirements():
-    cmd = "poetry install;"
-    subprocess.run(cmd, shell=True)    
-
-def set_flags_in_envs_deprecated(
-    postgres_user,
-    celery_flower_user,
-    debug=False,
-):
-    local_django_envs_path = os.path.join(".envs", ".local", ".django")
-    production_django_envs_path = os.path.join(".envs", ".production", ".django")
-    local_postgres_envs_path = os.path.join(".envs", ".local", ".postgres")
-    production_postgres_envs_path = os.path.join(".envs", ".production", ".postgres")
-
-    set_django_secret_key(production_django_envs_path)
-    set_django_admin_url(production_django_envs_path)
-
-    set_postgres_user(local_postgres_envs_path, value=postgres_user)
-    set_database_password(local_postgres_envs_path, value=DEBUG_VALUE if debug else None)
-    set_postgres_user(production_postgres_envs_path, value=postgres_user)
-
-    set_celery_flower_user(local_django_envs_path, value=celery_flower_user)
-    set_celery_flower_password(local_django_envs_path, value=DEBUG_VALUE if debug else None)
-    set_celery_flower_user(production_django_envs_path, value=celery_flower_user)
-    set_celery_flower_password(production_django_envs_path, value=DEBUG_VALUE if debug else None)
-
+def remove_docker_files():
+    for path in ["docker-compose.yml", ".dockerignore", "docker-files"]:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        elif os.path.isfile(path):
+            os.remove(path)
 
 def reformat_white_space():
     try:
         import autopep8
+        target = os.path.abspath("./{{ cookiecutter.app_name }}")
+        args = autopep8.parse_args(['--max-line-length=119', '--in-place', '--recursive'])
+        if os.path.exists(target):
+            autopep8.fix_multiple_files([target], args)
     except ImportError:
-        print(WARNING + "Could not find 'autopep8', exceeding whitespace will not be removed!" + TERMINATOR)
-        return
-
-    merchant_dir_path = os.path.abspath("./{{ cookiecutter.app_name }}")
-    args = autopep8.parse_args(['--max-line-length 119', '--in-place', '--recursive'])
-    if os.path.exists(merchant_dir_path):
-        autopep8.fix_multiple_files([merchant_dir_path], args)
-
+        print(WARNING + "autopep8 not found. Skipping formatting." + TERMINATOR)
 
 def main():
-    set_django_secret_key(os.path.join("{{ cookiecutter.app_name }}", "settings.py"))
+    set_secrets()
     shutil.move(".editorconfig.template", ".editorconfig")
-    next_steps = "Next steps to perform:"
-    if "{{ cookiecutter.dockerize }}" == "n":
+    is_docker = "{{ cookiecutter.dockerize }}" != "n"
+
+    print(HINT + "Next steps:" + TERMINATOR)
+
+    if not is_docker:
         remove_docker_files()
-        next_steps += """
+        print(HINT + f"""
 cd {{ cookiecutter.project_slug }}
-pipenv install
+poetry install
 npm install
-pipenv run ./manage.py initialize_shop_demo
-pipenv run ./manage.py runserver
-"""
+poetry run python manage.py initialize_shop_demo
+poetry run python manage.py runserver
+""" + TERMINATOR)
     else:
-        pipenv_to_requirements()
-        set_database_password("docker-files/databases.environ")
-        next_steps += """
+        poetry_export_requirements()
+        set_flag("docker-files/databases.environ", "!!!SET POSTGRES_PASSWORD!!!", length=48)
+        print(HINT + f"""
 cd {{ cookiecutter.project_slug }}
 docker-compose up --build -d
-"""
-    print(HINT + next_steps + TERMINATOR)
-    reformat_white_space()
-    print(SUCCESS + "Project initialized, keep up the good work!" + TERMINATOR)
+""" + TERMINATOR)
 
+    reformat_white_space()
+    print(SUCCESS + "Project initialized using Poetry. 🚀" + TERMINATOR)
 
 if __name__ == "__main__":
     main()
